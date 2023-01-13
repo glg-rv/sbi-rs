@@ -44,6 +44,9 @@ pub use tee_guest::*;
 // The PMU SBI extension
 mod pmu;
 pub use pmu::*;
+// Custom vendor extensions
+mod vendor;
+pub use vendor::*;
 
 /// Interfaces for invoking SBI functionality.
 pub mod api;
