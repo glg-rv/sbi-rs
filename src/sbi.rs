@@ -47,6 +47,8 @@ pub use pmu::*;
 // Custom vendor extensions
 mod vendor;
 pub use vendor::*;
+/// Salus vendor extension
+pub mod salus;
 
 /// Interfaces for invoking SBI functionality.
 pub mod api;
