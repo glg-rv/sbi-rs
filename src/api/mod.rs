@@ -31,3 +31,6 @@ pub mod base;
 
 /// Host interfaces for attestation.
 pub mod attestation;
+
+/// Salus Vendor extension;
+pub mod salus;
