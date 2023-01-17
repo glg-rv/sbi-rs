@@ -15,6 +15,8 @@ mod error;
 pub use error::*;
 mod function;
 pub use function::*;
+mod ecall;
+pub use ecall::*;
 // The Attestation SBI extension
 mod attestation;
 pub use attestation::*;
@@ -45,9 +47,6 @@ pub use pmu::*;
 
 /// Interfaces for invoking SBI functionality.
 pub mod api;
-
-#[cfg(all(target_arch = "riscv64", target_os = "none"))]
-use core::arch::asm;
 
 /// The values returned from an SBI function call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -154,9 +153,11 @@ impl SbiMessage {
             _ => Err(Error::NotSupported),
         }
     }
+}
 
-    /// Returns the register value for this `SbiMessage`.
-    pub fn a7(&self) -> u64 {
+impl EcallMessage for SbiMessage {
+    // Returns the register value for this `SbiMessage`.
+    fn a7(&self) -> u64 {
         use SbiMessage::*;
         match self {
             PutChar(_) => EXT_PUT_CHAR,
@@ -175,8 +176,8 @@ impl SbiMessage {
 
     // TODO: Consider using enum_dispatch to avoid the repetition.
 
-    /// Returns the register value for this `SbiMessage`.
-    pub fn a6(&self) -> u64 {
+    // Returns the register value for this `SbiMessage`.
+    fn a6(&self) -> u64 {
         use SbiMessage::*;
         match self {
             PutChar(_) => 0,
@@ -193,8 +194,8 @@ impl SbiMessage {
         }
     }
 
-    /// Returns the register value for this `SbiMessage`.
-    pub fn a5(&self) -> u64 {
+    // Returns the register value for this `SbiMessage`.
+    fn a5(&self) -> u64 {
         use SbiMessage::*;
         match self {
             PutChar(_) => 0,
@@ -211,8 +212,8 @@ impl SbiMessage {
         }
     }
 
-    /// Returns the register value for this `SbiMessage`.
-    pub fn a4(&self) -> u64 {
+    // Returns the register value for this `SbiMessage`.
+    fn a4(&self) -> u64 {
         use SbiMessage::*;
         match self {
             PutChar(_) => 0,
@@ -229,8 +230,8 @@ impl SbiMessage {
         }
     }
 
-    /// Returns the register value for this `SbiMessage`.
-    pub fn a3(&self) -> u64 {
+    // Returns the register value for this `SbiMessage`.
+    fn a3(&self) -> u64 {
         use SbiMessage::*;
         match self {
             PutChar(_) => 0,
@@ -247,8 +248,8 @@ impl SbiMessage {
         }
     }
 
-    /// Returns the register value for this `SbiMessage`.
-    pub fn a2(&self) -> u64 {
+    // Returns the register value for this `SbiMessage`.
+    fn a2(&self) -> u64 {
         use SbiMessage::*;
         match self {
             PutChar(_) => 0,
@@ -265,8 +266,8 @@ impl SbiMessage {
         }
     }
 
-    /// Returns the register value for this `SbiMessage`.
-    pub fn a1(&self) -> u64 {
+    // Returns the register value for this `SbiMessage`.
+    fn a1(&self) -> u64 {
         use SbiMessage::*;
         match self {
             PutChar(_) => 0,
@@ -283,8 +284,8 @@ impl SbiMessage {
         }
     }
 
-    /// Returns the register value for this `SbiMessage`.
-    pub fn a0(&self) -> u64 {
+    // Returns the register value for this `SbiMessage`.
+    fn a0(&self) -> u64 {
         use SbiMessage::*;
         match self {
             PutChar(c) => *c,
@@ -301,29 +302,8 @@ impl SbiMessage {
         }
     }
 
-    /// Returns the result returned in the SbiMessage. Intended for use after an SbiMessage has been
-    /// handled by the firmware. Interprets the given registers based on the extension and function
-    /// and returns the approprate result.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// #[cfg(all(target_arch = "riscv64", target_os = "none"))]
-    /// pub fn ecall_send(msg: &SbiMessage) -> Result<u64> {
-    ///     let mut a0 = msg.a0(); // error code
-    ///     let mut a1 = msg.a1(); // return value
-    ///     unsafe {
-    ///         // Safe, but relies on trusting the hypervisor or firmware.
-    ///         asm!("ecall", inout("a0") a0, inout("a1")a1,
-    ///                 in("a2")msg.a2(), in("a3") msg.a3(),
-    ///                 in("a4")msg.a4(), in("a5") msg.a5(),
-    ///                 in("a6")msg.a6(), in("a7") msg.a7());
-    ///     }
-    ///
-    ///     msg.result(a0, a1)
-    /// }
-    /// ```
-    pub fn result(&self, a0: u64, a1: u64) -> Result<u64> {
+    // Implemented trait function for handling legacy SBI returns.
+    fn result(&self, a0: u64, a1: u64) -> Result<u64> {
         let ret = SbiReturn {
             error_code: a0 as i64,
             return_value: a1,
@@ -338,34 +318,4 @@ impl SbiMessage {
             _ => ret.into(),
         }
     }
-}
-
-/// Send an ecall to the firmware or hypervisor.
-///
-/// # Safety
-///
-/// The caller must verify that any memory references contained in `msg` obey Rust's memory
-/// safety rules. For example, any pointers to memory that will be modified in the handling of
-/// the ecall must be uniquely owned. Similarly any pointers read by the ecall must not be
-/// mutably borrowed.
-///
-/// In addition the caller is placing trust in the firmware or hypervisor to maintain the promises
-/// of the interface w.r.t. reading and writing only within the provided bounds.
-#[cfg(all(target_arch = "riscv64", target_os = "none"))]
-pub unsafe fn ecall_send(msg: &SbiMessage) -> Result<u64> {
-    // normally error code
-    let mut a0;
-    // normally return value
-    let mut a1;
-    asm!("ecall", inlateout("a0") msg.a0()=>a0, inlateout("a1")msg.a1()=>a1,
-                in("a2")msg.a2(), in("a3") msg.a3(),
-                in("a4")msg.a4(), in("a5") msg.a5(),
-                in("a6")msg.a6(), in("a7") msg.a7(), options(nostack));
-
-    msg.result(a0, a1)
-}
-
-#[cfg(not(all(target_arch = "riscv64", target_os = "none")))]
-unsafe fn ecall_send(_msg: &SbiMessage) -> Result<u64> {
-    panic!("ecall_send called");
 }
